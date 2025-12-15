@@ -1,111 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-	<dict>
-		<key>NSUserActivityTypes</key>
-		<array>
-			<string>INSendMessageIntent</string>
-		</array>
-		<key>CADisableMinimumFrameDurationOnPhone</key>
-		<true />
-		<key>CFBundleDevelopmentRegion</key>
-		<string>$(DEVELOPMENT_LANGUAGE)</string>
-		<key>CFBundleDisplayName</key>
-		<string>KEDTec HR</string>
-		<key>CFBundleExecutable</key>
-		<string>$(EXECUTABLE_NAME)</string>
-		<key>CFBundleIdentifier</key>
-		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-		<key>CFBundleInfoDictionaryVersion</key>
-		<string>6.0</string>
-		<key>CFBundleName</key>
-		<string>hrm_mobile</string>
-		<key>CFBundlePackageType</key>
-		<string>APPL</string>
-		<key>CFBundleShortVersionString</key>
-		<string>$(FLUTTER_BUILD_NAME)</string>
-		<key>CFBundleSignature</key>
-		<string>????</string>
-		<key>CFBundleURLTypes</key>
-		<array>
-			<dict>
-				<key>CFBundleTypeRole</key>
-				<string>Editor</string>
-				<key>CFBundleURLSchemes</key>
-				<array>
-					<string>com.googleusercontent.apps.234135039050-4pcilml1718886fm80k46dc8qpd3ba7v</string>
-				</array>
-			</dict>
-		</array>
-		<key>CFBundleVersion</key>
-		<string>$(FLUTTER_BUILD_NUMBER)</string>
-		<key>FirebaseAppDelegateProxyEnabled</key>
-		<false />
-		<key>FirebaseMessagingAutoInitEnabled</key>
-		<false />
-		<key>LSRequiresIPhoneOS</key>
-		<true />
-		<key>NSAppleMusicUsageDescription</key>
-		<string>Music!</string>
-		<key>NSCalendarsUsageDescription</key>
-		<string>Calendars</string>
-		<key>NSCameraUsageDescription</key>
-		<string>Allow KEDTec HR to access camera to change your profile photo.</string>
-		<key>NSContactsUsageDescription</key>
-		<string>contacts</string>
-		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-		<string>Allow KEDTec HR access location to use kids pickup.</string>
-		<key>NSLocationAlwaysUsageDescription</key>
-		<string>Allow KEDTec HR access location to use kids pickup.</string>
-		<key>NSLocationUsageDescription</key>
-		<string>Allow KEDTec HR access location to use kids pickup.</string>
-		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>Allow KEDTec HR access location to use kids pickup.</string>
-		<key>NSMicrophoneUsageDescription</key>
-		<string>Allow KEDTec HR access your microphone to record voice.</string>
-		<key>NSMotionUsageDescription</key>
-		<string>motion</string>
-		<key>NSPhotoLibraryUsageDescription</key>
-		<string>Allow KEDTec HR brow photo to change your profile photo.</string>
-		<key>NSRemindersUsageDescription</key>
-		<string>reminders</string>
-		<key>NSSpeechRecognitionUsageDescription</key>
-		<string>speech</string>
-		<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
-		<true />
-		<key>UIApplicationSupportsIndirectInputEvents</key>
-		<true />
-		<key>UIBackgroundModes</key>
-		<array>
-			<string>fetch</string>
-			<string>remote-notification</string>
-		</array>
-		<key>UILaunchStoryboardName</key>
-		<string>LaunchScreen</string>
-		<key>UIMainStoryboardFile</key>
-		<string>Main</string>
-		<key>UIStatusBarHidden</key>
-		<false />
-		<key>UISupportedInterfaceOrientations</key>
-		<array>
-			<string>UIInterfaceOrientationPortrait</string>
-			<string>UIInterfaceOrientationLandscapeLeft</string>
-			<string>UIInterfaceOrientationLandscapeRight</string>
-		</array>
-		<key>UISupportedInterfaceOrientations~ipad</key>
-		<array>
-			<string>UIInterfaceOrientationPortrait</string>
-			<string>UIInterfaceOrientationPortraitUpsideDown</string>
-			<string>UIInterfaceOrientationLandscapeLeft</string>
-			<string>UIInterfaceOrientationLandscapeRight</string>
-		</array>
-		<key>UIViewControllerBasedStatusBarAppearance</key>
-		<false />
-		<key>kTCCServiceMediaLibrary</key>
-		<string>media</string>
-
-		<key>NSBluetoothAlwaysUsageDescription</key>
-		<string>Used for beacon detection</string>
-
-	</dict>
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Ibeacon</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>ibeacon</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Reason why app needs bluetooth</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Reason why app needs location</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Reason why app needs location</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Reason why app needs location</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
 </plist>

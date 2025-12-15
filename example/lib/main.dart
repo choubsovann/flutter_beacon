@@ -2,47 +2,19 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_beacon_example/controller/requirement_state_controller.dart';
-import 'package:flutter_beacon_example/view/home_page.dart';
 import 'package:flutter_beacon/flutter_beacon.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:get/get.dart';
 import 'package:flu_wake_lock/flu_wake_lock.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'util.dart';
 
-enum SignalLevel { veryStrong, strong, medium, weak, lost }
-
-SignalLevel rssiToLevel(int rssi) {
-  if (rssi >= -55) return SignalLevel.veryStrong;
-  if (rssi >= -65) return SignalLevel.strong;
-  if (rssi >= -75) return SignalLevel.medium;
-  if (rssi >= -85) return SignalLevel.weak;
-  return SignalLevel.lost;
-}
-
-extension SignalLevelExtension on SignalLevel {
-  String get str {
-    switch (this) {
-      case SignalLevel.veryStrong:
-        return 'Very Strong';
-      case SignalLevel.strong:
-        return 'Strong';
-      case SignalLevel.medium:
-        return 'Medium';
-      case SignalLevel.weak:
-        return 'Weak';
-      case SignalLevel.lost:
-        return 'Lost';
-    }
-  }
-}
-
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.remove();
   FluWakeLock().enable();
 
+  FlutterNativeSplash.remove();
   Future.microtask(() async {
     if (Platform.isAndroid) {
       await Permission.locationWhenInUse.request();
@@ -99,10 +71,11 @@ class MyWidgetScreen extends StatefulWidget {
 
 class _MyWidgetScreenState extends State<MyWidgetScreen> {
   StreamSubscription? _sub;
-  final distanceNotifier = ValueNotifier<double>(0);
-  final rssiNotifier = ValueNotifier<int>(0);
-  final statusNotifier = ValueNotifier<bool>(false);
-  final double inThreshold = 2.0;
+  StreamSubscription? _monitorSub;
+  final _distanceNotifier = ValueNotifier<double>(0);
+  final _rssiNotifier = ValueNotifier<int>(0);
+  final _monitorNotifier =
+      ValueNotifier<MonitoringState>(MonitoringState.outside);
 
   @override
   void initState() {
@@ -119,16 +92,21 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
 
     Future.microtask(() async {
       await flutterBeacon.initializeScanning;
+      _monitorSub =
+          flutterBeacon.monitoring(regions).listen((MonitoringResult result) {
+        if (result.monitoringState != null) {
+          _monitorNotifier.value =
+              result.monitoringState ?? MonitoringState.outside;
+        }
+      });
       _sub = flutterBeacon.ranging(regions).listen((RangingResult result) {
         if (result.beacons.isEmpty) {
           return;
         }
 
         final beacon = result.beacons.first;
-        distanceNotifier.value = beacon.accuracy;
-        rssiNotifier.value = beacon.rssi;
-        statusNotifier.value =
-            beacon.accuracy >= 0 && beacon.accuracy <= inThreshold;
+        _distanceNotifier.value = beacon.accuracy;
+        _rssiNotifier.value = beacon.rssi;
       });
     });
   }
@@ -136,6 +114,7 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _monitorSub?.cancel();
     super.dispose();
   }
 
@@ -153,28 +132,32 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
             children: [
               // Status Indicator
               ValueListenableBuilder(
-                valueListenable: statusNotifier,
-                builder: (_, bool status, w) {
+                valueListenable: _monitorNotifier,
+                builder: (_, MonitoringState status, w) {
                   return Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: status ? Colors.green : Colors.red,
+                      color: status == MonitoringState.inside
+                          ? Colors.green
+                          : Colors.red,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          status ? Icons.check_circle : Icons.cancel,
+                          status == MonitoringState.inside
+                              ? Icons.check_circle
+                              : Icons.cancel,
                           color: Colors.white,
                           size: 32,
                         ),
                         SizedBox(width: 12),
                         Text(
-                          'Status: $status',
+                          'Status: ${status == MonitoringState.inside ? 'Inside' : 'Outside'}',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 24,
@@ -188,7 +171,7 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
               ),
               SizedBox(height: 32),
               ValueListenableBuilder(
-                  valueListenable: distanceNotifier,
+                  valueListenable: _distanceNotifier,
                   builder: (_, double v, w) {
                     return Center(
                       child: Text(
@@ -198,7 +181,7 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
                     );
                   }),
               ValueListenableBuilder(
-                  valueListenable: rssiNotifier,
+                  valueListenable: _rssiNotifier,
                   builder: (_, int v, w) {
                     return Center(
                       child: Row(
