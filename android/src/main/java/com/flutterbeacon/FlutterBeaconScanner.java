@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -26,6 +28,9 @@ class FlutterBeaconScanner {
   private static final String TAG = FlutterBeaconScanner.class.getSimpleName();
   private final FlutterBeaconPlugin plugin;
   private final WeakReference<Activity> activity;
+  
+  // Add Handler for main thread operations
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
   private EventChannel.EventSink eventSinkRanging;
   private EventChannel.EventSink eventSinkMonitoring;
@@ -35,6 +40,25 @@ class FlutterBeaconScanner {
   public FlutterBeaconScanner(FlutterBeaconPlugin plugin, Activity activity) {
     this.plugin = plugin;
     this.activity = new WeakReference<>(activity);
+  }
+
+  // Helper methods to run EventSink calls on main thread
+  private void sendEventOnMainThread(EventChannel.EventSink eventSink, Object event) {
+    if (eventSink != null) {
+      mainHandler.post(() -> eventSink.success(event));
+    }
+  }
+
+  private void sendErrorOnMainThread(EventChannel.EventSink eventSink, String code, String message, Object details) {
+    if (eventSink != null) {
+      mainHandler.post(() -> eventSink.error(code, message, details));
+    }
+  }
+
+  private void sendEndOfStreamOnMainThread(EventChannel.EventSink eventSink) {
+    if (eventSink != null) {
+      mainHandler.post(() -> eventSink.endOfStream());
+    }
   }
 
   final EventChannel.StreamHandler rangingStreamHandler = new EventChannel.StreamHandler() {
@@ -70,7 +94,7 @@ class FlutterBeaconScanner {
         }
       }
     } else {
-      eventSink.error("Beacon", "invalid region for ranging", null);
+      sendErrorOnMainThread(eventSink, "Beacon", "invalid region for ranging", null);
       return;
     }
     eventSinkRanging = eventSink;
@@ -97,7 +121,7 @@ class FlutterBeaconScanner {
       }
     } catch (RemoteException e) {
       if (eventSinkRanging != null) {
-        eventSinkRanging.error("Beacon", e.getLocalizedMessage(), null);
+        sendErrorOnMainThread(eventSinkRanging, "Beacon", e.getLocalizedMessage(), null);
       }
     }
   }
@@ -123,7 +147,7 @@ class FlutterBeaconScanner {
         Map<String, Object> map = new HashMap<>();
         map.put("region", FlutterBeaconUtils.regionToMap(region));
         map.put("beacons", FlutterBeaconUtils.beaconsToArray(new ArrayList<>(collection)));
-        eventSinkRanging.success(map);
+        sendEventOnMainThread(eventSinkRanging, map);
       }
     }
   };
@@ -142,7 +166,8 @@ class FlutterBeaconScanner {
 
   @SuppressWarnings("rawtypes")
   private void startMonitoring(Object o, EventChannel.EventSink eventSink) {
-    Log.d(TAG, "START MONITORING=" + o);
+    Log.d(TAG, "START MONITORING==" + o);
+    
     if (o instanceof List) {
       List list = (List) o;
       if (regionMonitoring == null) {
@@ -158,9 +183,10 @@ class FlutterBeaconScanner {
         }
       }
     } else {
-      eventSink.error("Beacon", "invalid region for monitoring", null);
+      sendErrorOnMainThread(eventSink, "Beacon", "invalid region for monitoring", null);
       return;
     }
+    
     eventSinkMonitoring = eventSink;
     if (plugin.getBeaconManager() != null && !plugin.getBeaconManager().isBound(beaconConsumer)) {
       plugin.getBeaconManager().bind(beaconConsumer);
@@ -183,7 +209,7 @@ class FlutterBeaconScanner {
       }
     } catch (RemoteException e) {
       if (eventSinkMonitoring != null) {
-        eventSinkMonitoring.error("Beacon", e.getLocalizedMessage(), null);
+        sendErrorOnMainThread(eventSinkMonitoring, "Beacon", e.getLocalizedMessage(), null);
       }
     }
   }
@@ -208,7 +234,7 @@ class FlutterBeaconScanner {
         Map<String, Object> map = new HashMap<>();
         map.put("event", "didEnterRegion");
         map.put("region", FlutterBeaconUtils.regionToMap(region));
-        eventSinkMonitoring.success(map);
+        sendEventOnMainThread(eventSinkMonitoring, map);
       }
     }
 
@@ -218,7 +244,7 @@ class FlutterBeaconScanner {
         Map<String, Object> map = new HashMap<>();
         map.put("event", "didExitRegion");
         map.put("region", FlutterBeaconUtils.regionToMap(region));
-        eventSinkMonitoring.success(map);
+        sendEventOnMainThread(eventSinkMonitoring, map);
       }
     }
 
@@ -229,7 +255,7 @@ class FlutterBeaconScanner {
         map.put("event", "didDetermineStateForRegion");
         map.put("state", FlutterBeaconUtils.parseState(state));
         map.put("region", FlutterBeaconUtils.regionToMap(region));
-        eventSinkMonitoring.success(map);
+        sendEventOnMainThread(eventSinkMonitoring, map);
       }
     }
   };
