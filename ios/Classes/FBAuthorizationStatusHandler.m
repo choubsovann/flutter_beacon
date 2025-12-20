@@ -31,7 +31,7 @@
 }
 
 - (FlutterError * _Nullable)onListenWithArguments:(id _Nullable)arguments eventSink:(nonnull FlutterEventSink)events {
-    // initialize central manager if it itsn't
+    // initialize location manager if it isn't
     [self.instance initializeLocationManager];
     
     if (self.instance) {

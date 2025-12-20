@@ -28,9 +28,13 @@
 @property FlutterResult flutterBluetoothResult;
 @property FlutterResult flutterBroadcastResult;
 
+// Background task management
+@property (assign, nonatomic) UIBackgroundTaskIdentifier backgroundTask;
+
 @end
 
 @implementation FlutterBeaconPlugin
+
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
     FlutterMethodChannel* channel = [FlutterMethodChannel methodChannelWithName:@"flutter_beacon"
                                                                 binaryMessenger:[registrar messenger]];
@@ -60,6 +64,17 @@
     [FlutterEventChannel eventChannelWithName:@"flutter_authorization_status_changed"
                               binaryMessenger:[registrar messenger]];
     [streamChannelAuthorization setStreamHandler:instance.authorizationHandler];
+    
+    // Register for app lifecycle notifications
+    [[NSNotificationCenter defaultCenter] addObserver:instance
+                                             selector:@selector(applicationDidEnterBackground:)
+                                                 name:UIApplicationDidEnterBackgroundNotification
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:instance
+                                             selector:@selector(applicationWillEnterForeground:)
+                                                 name:UIApplicationWillEnterForegroundNotification
+                                               object:nil];
 }
 
 - (id)init {
@@ -68,8 +83,13 @@
         // Earlier versions of flutter_beacon only supported "always" permission,
         // so set this as the default to stay backwards compatible.
         self.defaultLocationAuthorizationType = kCLAuthorizationStatusAuthorizedAlways;
+        self.backgroundTask = UIBackgroundTaskInvalid;
     }
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
@@ -175,59 +195,25 @@
     }
     
     if ([@"openBluetoothSettings" isEqualToString:call.method]) {
-        // do nothing
-        
-        // Beware, this is considered as a private API and Apple will rejecte your application
-        // Uncomment these codes below if your want to publish this app privately
-        /*
-        NSString *settingsUrl= @"App-Prefs:root=Bluetooth";
-        if ([[UIApplication sharedApplication] respondsToSelector:@selector(openURL:options:completionHandler:)]) {
-            if (@available(iOS 10.0, *)) {
-                [[UIApplication sharedApplication] openURL:[NSURL URLWithString:settingsUrl] options:@{} completionHandler:^(BOOL success) {
-                    NSLog(@"Bluetooth settings opened");
-                }];
-            } else {
-                [[UIApplication sharedApplication] openURL:[NSURL URLWithString:settingsUrl]];
-            }
-        }
-         */
-        
+        // do nothing - private API
         result(@(YES));
         return;
     }
     
     if ([@"openLocationSettings" isEqualToString:call.method]) {
-        // // do nothing
-        
-        // Beware, this is considered as a private API and Apple will reject your application
-        // Uncomment these codes below if your want to publish this app privately
-        /*
-        NSString *settingsUrl= @"App-Prefs:root=Privacy&path=LOCATION";
-        if ([[UIApplication sharedApplication] respondsToSelector:@selector(openURL:options:completionHandler:)]) {
-            if (@available(iOS 10.0, *)) {
-                [[UIApplication sharedApplication] openURL:[NSURL URLWithString:settingsUrl] options:@{} completionHandler:^(BOOL success) {
-                    NSLog(@"Location settings opened");
-                }];
-            } else {
-                [[UIApplication sharedApplication] openURL:[NSURL URLWithString:settingsUrl]];
-            }
-        }
-         */
-        
+        // do nothing - private API
         result(@(YES));
         return;
     }
 
     if ([@"setScanPeriod" isEqualToString:call.method]) {
         // do nothing
-
         result(@(YES));
         return;
     }
 
     if ([@"setBetweenScanPeriod" isEqualToString:call.method]) {
         // do nothing
-
         result(@(YES));
         return;
     }
@@ -276,22 +262,78 @@
     result(FlutterMethodNotImplemented);
 }
 
+///------------------------------------------------------------
+#pragma mark - App Lifecycle Management
+///------------------------------------------------------------
+
+- (void)applicationDidEnterBackground:(NSNotification *)notification {
+    NSLog(@"App entering background - ensuring beacon monitoring continues");
+    
+    // Request extended background execution time
+    if (self.backgroundTask != UIBackgroundTaskInvalid) {
+        [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTask];
+    }
+    
+    self.backgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+        NSLog(@"Background task expired");
+        [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTask];
+        self.backgroundTask = UIBackgroundTaskInvalid;
+    }];
+    
+    // Verify monitoring is active
+    if (self.regionMonitoring && self.regionMonitoring.count > 0) {
+        NSLog(@"Active monitoring regions: %lu", (unsigned long)self.regionMonitoring.count);
+        for (CLBeaconRegion *region in self.regionMonitoring) {
+            // Request state update for each region
+            [self.locationManager requestStateForRegion:region];
+        }
+    }
+}
+
+- (void)applicationWillEnterForeground:(NSNotification *)notification {
+    NSLog(@"App entering foreground");
+    
+    if (self.backgroundTask != UIBackgroundTaskInvalid) {
+        [[UIApplication sharedApplication] endBackgroundTask:self.backgroundTask];
+        self.backgroundTask = UIBackgroundTaskInvalid;
+    }
+    
+    // Request state update for all monitored regions
+    if (self.regionMonitoring && self.regionMonitoring.count > 0) {
+        for (CLBeaconRegion *region in self.regionMonitoring) {
+            [self.locationManager requestStateForRegion:region];
+        }
+    }
+}
+
+///------------------------------------------------------------
+#pragma mark - Initialization
+///------------------------------------------------------------
+
 - (void) initializeCentralManager {
     if (!self.bluetoothManager) {
-        // initialize central manager if it itsn't
+        // initialize central manager if it isn't
         self.bluetoothManager = [[CBCentralManager alloc] initWithDelegate:self queue:dispatch_get_main_queue()];
     }
 }
 
 - (void) initializeLocationManager {
     if (!self.locationManager) {
-        // initialize location manager if it itsn't
+        // initialize location manager if it isn't
         self.locationManager = [[CLLocationManager alloc] init];
         self.locationManager.delegate = self;
         
         // CRITICAL: Enable background location updates for real-time monitoring
         self.locationManager.allowsBackgroundLocationUpdates = YES;
         self.locationManager.pausesLocationUpdatesAutomatically = NO;
+        
+        // CRITICAL: Set desired accuracy for better beacon detection
+        self.locationManager.desiredAccuracy = kCLLocationAccuracyBest;
+        
+        // CRITICAL: Set distance filter to receive updates more frequently
+        self.locationManager.distanceFilter = kCLDistanceFilterNone;
+        
+        NSLog(@"Location Manager initialized with background updates enabled");
     }
 }
 
@@ -336,6 +378,7 @@
 
 - (void) stopRangingBeacon {
     for (CLBeaconRegion *region in self.regionRanging) {
+        NSLog(@"STOP RANGING: %@", region);
         [self.locationManager stopRangingBeaconsInRegion:region];
     }
     self.flutterEventSinkRanging = nil;
@@ -347,6 +390,10 @@
 
 - (void) startMonitoringBeaconWithCall:(id)arguments {
     if (self.regionMonitoring) {
+        // Stop existing monitoring
+        for (CLBeaconRegion *region in self.regionMonitoring) {
+            [self.locationManager stopMonitoringForRegion:region];
+        }
         [self.regionMonitoring removeAllObjects];
     } else {
         self.regionMonitoring = [NSMutableArray array];
@@ -366,19 +413,29 @@
         }
     }
     
+    // CRITICAL: Start location updates to keep monitoring active in background
+    [self.locationManager startUpdatingLocation];
+    
     for (CLBeaconRegion *r in self.regionMonitoring) {
-        NSLog(@"START MONITORING: %@", r);
+        NSLog(@"START MONITORING: %@ (UUID: %@)", r.identifier, r.proximityUUID.UUIDString);
         [self.locationManager startMonitoringForRegion:r];
         
         // CRITICAL FIX: Request immediate state determination
         [self.locationManager requestStateForRegion:r];
     }
+    
+    NSLog(@"Total monitored regions: %lu", (unsigned long)[self.locationManager monitoredRegions].count);
 }
 
 - (void) stopMonitoringBeacon {
     for (CLBeaconRegion *region in self.regionMonitoring) {
+        NSLog(@"STOP MONITORING: %@", region);
         [self.locationManager stopMonitoringForRegion:region];
     }
+    
+    // Stop location updates
+    [self.locationManager stopUpdatingLocation];
+    
     self.flutterEventSinkMonitoring = nil;
 }
 
@@ -394,76 +451,36 @@
 }
 
 ///------------------------------------------------------------
-#pragma mark - Bluetooth Manager
+#pragma mark - Bluetooth Manager Delegate
 ///------------------------------------------------------------
 
 - (void)centralManagerDidUpdateState:(CBCentralManager *)central {
     NSString *message = nil;
+    NSString *stateString = nil;
+    
     switch(central.state) {
         case CBManagerStateUnknown:
-            if (self.flutterBluetoothResult) {
-                self.flutterBluetoothResult(@"STATE_UNKNOWN");
-                self.flutterBluetoothResult = nil;
-                return;
-            }
+            stateString = @"STATE_UNKNOWN";
             message = @"CBManagerStateUnknown";
-            if (self.flutterEventSinkBluetooth) {
-                self.flutterEventSinkBluetooth(@"STATE_UNKNOWN");
-            }
             break;
         case CBManagerStateResetting:
-            if (self.flutterBluetoothResult) {
-                self.flutterBluetoothResult(@"STATE_RESETTING");
-                self.flutterBluetoothResult = nil;
-                return;
-            }
+            stateString = @"STATE_RESETTING";
             message = @"CBManagerStateResetting";
-            if (self.flutterEventSinkBluetooth) {
-                self.flutterEventSinkBluetooth(@"STATE_RESETTING");
-            }
             break;
         case CBManagerStateUnsupported:
-            if (self.flutterBluetoothResult) {
-                self.flutterBluetoothResult(@"STATE_UNSUPPORTED");
-                self.flutterBluetoothResult = nil;
-                return;
-            }
+            stateString = @"STATE_UNSUPPORTED";
             message = @"CBManagerStateUnsupported";
-            if (self.flutterEventSinkBluetooth) {
-                self.flutterEventSinkBluetooth(@"STATE_UNSUPPORTED");
-            }
             break;
         case CBManagerStateUnauthorized:
-            if (self.flutterBluetoothResult) {
-                self.flutterBluetoothResult(@"STATE_UNAUTHORIZED");
-                self.flutterBluetoothResult = nil;
-                return;
-            }
+            stateString = @"STATE_UNAUTHORIZED";
             message = @"CBManagerStateUnauthorized";
-            if (self.flutterEventSinkBluetooth) {
-                self.flutterEventSinkBluetooth(@"STATE_UNAUTHORIZED");
-            }
             break;
         case CBManagerStatePoweredOff:
-            if (self.flutterBluetoothResult) {
-                self.flutterBluetoothResult(@"STATE_OFF");
-                self.flutterBluetoothResult = nil;
-                return;
-            }
+            stateString = @"STATE_OFF";
             message = @"CBManagerStatePoweredOff";
-            if (self.flutterEventSinkBluetooth) {
-                self.flutterEventSinkBluetooth(@"STATE_OFF");
-            }
             break;
         case CBManagerStatePoweredOn:
-            if (self.flutterBluetoothResult) {
-                self.flutterBluetoothResult(@"STATE_ON");
-                self.flutterBluetoothResult = nil;
-                return;
-            }
-            if (self.flutterEventSinkBluetooth) {
-                self.flutterEventSinkBluetooth(@"STATE_ON");
-            }
+            stateString = @"STATE_ON";
             if ([CLLocationManager locationServicesEnabled]) {
                 if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusNotDetermined) {
                     [self requestDefaultLocationManagerAuthorization];
@@ -473,11 +490,25 @@
                 } else if ([CLLocationManager authorizationStatus] == kCLAuthorizationStatusRestricted) {
                     message = @"CLAuthorizationStatusRestricted";
                 } else {
-                    // manage scanning
+                    // Authorization granted
+                    message = nil;
                 }
             } else {
                 message = @"LocationServicesDisabled";
             }
+            break;
+    }
+    
+    NSLog(@"Bluetooth state changed: %@", stateString);
+    
+    if (self.flutterBluetoothResult) {
+        self.flutterBluetoothResult(stateString);
+        self.flutterBluetoothResult = nil;
+        return;
+    }
+    
+    if (self.flutterEventSinkBluetooth) {
+        self.flutterEventSinkBluetooth(stateString);
     }
     
     if (self.flutterResult) {
@@ -490,16 +521,18 @@
 }
 
 ///------------------------------------------------------------
-#pragma mark - Location Manager
+#pragma mark - Location Manager Delegate
 ///------------------------------------------------------------
 
 - (void)requestDefaultLocationManagerAuthorization {
     switch (self.defaultLocationAuthorizationType) {
         case kCLAuthorizationStatusAuthorizedWhenInUse:
+            NSLog(@"Requesting When In Use authorization");
             [self.locationManager requestWhenInUseAuthorization];
             break;
         case kCLAuthorizationStatusAuthorizedAlways:
         default:
+            NSLog(@"Requesting Always authorization");
             [self.locationManager requestAlwaysAuthorization];
             break;
     }
@@ -507,37 +540,36 @@
 
 - (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status {
     NSString *message = nil;
+    NSString *statusString = nil;
+    
     switch (status) {
         case kCLAuthorizationStatusAuthorizedAlways:
-            if (self.flutterEventSinkAuthorization) {
-                self.flutterEventSinkAuthorization(@"ALWAYS");
-            }
-            // manage scanning
+            statusString = @"ALWAYS";
+            NSLog(@"Location authorization: Always");
             break;
         case kCLAuthorizationStatusAuthorizedWhenInUse:
-            if (self.flutterEventSinkAuthorization) {
-                self.flutterEventSinkAuthorization(@"WHEN_IN_USE");
-            }
-            // manage scanning
+            statusString = @"WHEN_IN_USE";
+            NSLog(@"Location authorization: When In Use");
             break;
         case kCLAuthorizationStatusDenied:
-            if (self.flutterEventSinkAuthorization) {
-                self.flutterEventSinkAuthorization(@"DENIED");
-            }
+            statusString = @"DENIED";
             message = @"CLAuthorizationStatusDenied";
+            NSLog(@"Location authorization: Denied");
             break;
         case kCLAuthorizationStatusRestricted:
-            if (self.flutterEventSinkAuthorization) {
-                self.flutterEventSinkAuthorization(@"RESTRICTED");
-            }
+            statusString = @"RESTRICTED";
             message = @"CLAuthorizationStatusRestricted";
+            NSLog(@"Location authorization: Restricted");
             break;
         case kCLAuthorizationStatusNotDetermined:
-            if (self.flutterEventSinkAuthorization) {
-                self.flutterEventSinkAuthorization(@"NOT_DETERMINED");
-            }
+            statusString = @"NOT_DETERMINED";
             message = @"CLAuthorizationStatusNotDetermined";
+            NSLog(@"Location authorization: Not Determined");
             break;
+    }
+    
+    if (self.flutterEventSinkAuthorization) {
+        self.flutterEventSinkAuthorization(statusString);
     }
     
     if (self.flutterResult) {
@@ -549,7 +581,16 @@
     }
 }
 
--(void)locationManager:(CLLocationManager*)manager didRangeBeacons:(NSArray*)beacons inRegion:(CLBeaconRegion*)region{
+- (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations {
+    // This keeps the location manager active and improves beacon detection
+    // Particularly important for background monitoring
+    if (locations.count > 0) {
+        CLLocation *location = locations.lastObject;
+        NSLog(@"Location update: %@", location);
+    }
+}
+
+- (void)locationManager:(CLLocationManager*)manager didRangeBeacons:(NSArray*)beacons inRegion:(CLBeaconRegion*)region {
     if (self.flutterEventSinkRanging) {
         NSDictionary *dictRegion = [FBUtils dictionaryFromCLBeaconRegion:region];
         
@@ -559,18 +600,27 @@
             [array addObject:dictBeacon];
         }
         
+        NSLog(@"Ranged %lu beacons in region: %@", (unsigned long)beacons.count, region.identifier);
+        
         self.flutterEventSinkRanging(@{
-                                @"region": dictRegion,
-                                @"beacons": array
-                                });
+            @"region": dictRegion,
+            @"beacons": array
+        });
     }
 }
 
 - (void)locationManager:(CLLocationManager *)manager didEnterRegion:(CLRegion *)region {
-    NSLog(@"DID ENTER REGION: %@", region.identifier);
+    NSLog(@"[ENTER] Region: %@", region.identifier);
+    
+    // CRITICAL: Start ranging immediately upon entry for better real-time detection
+    if ([region isKindOfClass:[CLBeaconRegion class]]) {
+        CLBeaconRegion *beaconRegion = (CLBeaconRegion *)region;
+        [manager startRangingBeaconsInRegion:beaconRegion];
+        NSLog(@"Started ranging beacons in region: %@", region.identifier);
+    }
     
     if (self.flutterEventSinkMonitoring) {
-        CLBeaconRegion *reg;
+        CLBeaconRegion *reg = nil;
         for (CLBeaconRegion *r in self.regionMonitoring) {
             if ([region.identifier isEqualToString:r.identifier]) {
                 reg = r;
@@ -581,18 +631,25 @@
         if (reg) {
             NSDictionary *dictRegion = [FBUtils dictionaryFromCLBeaconRegion:reg];
             self.flutterEventSinkMonitoring(@{
-                                              @"event": @"didEnterRegion",
-                                              @"region": dictRegion
-                                              });
+                @"event": @"didEnterRegion",
+                @"region": dictRegion
+            });
         }
     }
 }
 
 - (void)locationManager:(CLLocationManager *)manager didExitRegion:(CLRegion *)region {
-    NSLog(@"DID EXIT REGION: %@", region.identifier);
+    NSLog(@"[EXIT] Region: %@", region.identifier);
+    
+    // Stop ranging when exiting region
+    if ([region isKindOfClass:[CLBeaconRegion class]]) {
+        CLBeaconRegion *beaconRegion = (CLBeaconRegion *)region;
+        [manager stopRangingBeaconsInRegion:beaconRegion];
+        NSLog(@"Stopped ranging beacons in region: %@", region.identifier);
+    }
     
     if (self.flutterEventSinkMonitoring) {
-        CLBeaconRegion *reg;
+        CLBeaconRegion *reg = nil;
         for (CLBeaconRegion *r in self.regionMonitoring) {
             if ([region.identifier isEqualToString:r.identifier]) {
                 reg = r;
@@ -603,18 +660,43 @@
         if (reg) {
             NSDictionary *dictRegion = [FBUtils dictionaryFromCLBeaconRegion:reg];
             self.flutterEventSinkMonitoring(@{
-                                              @"event": @"didExitRegion",
-                                              @"region": dictRegion
-                                              });
+                @"event": @"didExitRegion",
+                @"region": dictRegion
+            });
         }
     }
 }
 
 - (void)locationManager:(CLLocationManager *)manager didDetermineState:(CLRegionState)state forRegion:(CLRegion *)region {
-    NSLog(@"DID DETERMINE STATE: %@ for region: %@", @(state), region.identifier);
+    NSString *stateString = nil;
+    
+    switch (state) {
+        case CLRegionStateInside:
+            stateString = @"INSIDE";
+            NSLog(@"[STATE] INSIDE - %@", region.identifier);
+            
+            // Start ranging if we're inside the region
+            if ([region isKindOfClass:[CLBeaconRegion class]]) {
+                [manager startRangingBeaconsInRegion:(CLBeaconRegion *)region];
+            }
+            break;
+        case CLRegionStateOutside:
+            stateString = @"OUTSIDE";
+            NSLog(@"[STATE] OUTSIDE - %@", region.identifier);
+            
+            // Stop ranging if we're outside the region
+            if ([region isKindOfClass:[CLBeaconRegion class]]) {
+                [manager stopRangingBeaconsInRegion:(CLBeaconRegion *)region];
+            }
+            break;
+        default:
+            stateString = @"UNKNOWN";
+            NSLog(@"[STATE] UNKNOWN - %@", region.identifier);
+            break;
+    }
     
     if (self.flutterEventSinkMonitoring) {
-        CLBeaconRegion *reg;
+        CLBeaconRegion *reg = nil;
         for (CLBeaconRegion *r in self.regionMonitoring) {
             if ([region.identifier isEqualToString:r.identifier]) {
                 reg = r;
@@ -624,33 +706,21 @@
         
         if (reg) {
             NSDictionary *dictRegion = [FBUtils dictionaryFromCLBeaconRegion:reg];
-            NSString *stt;
-            switch (state) {
-                case CLRegionStateInside:
-                    stt = @"INSIDE";
-                    break;
-                case CLRegionStateOutside:
-                    stt = @"OUTSIDE";
-                    break;
-                default:
-                    stt = @"UNKNOWN";
-                    break;
-            }
             self.flutterEventSinkMonitoring(@{
-                                              @"event": @"didDetermineStateForRegion",
-                                              @"region": dictRegion,
-                                              @"state": stt
-                                              });
+                @"event": @"didDetermineStateForRegion",
+                @"region": dictRegion,
+                @"state": stateString
+            });
         }
     }
 }
 
 // CRITICAL FIX: Handle monitoring failures
 - (void)locationManager:(CLLocationManager *)manager monitoringDidFailForRegion:(nullable CLRegion *)region withError:(NSError *)error {
-    NSLog(@"MONITORING FAILED for region: %@ with error: %@", region.identifier, error.localizedDescription);
+    NSLog(@"[ERROR] MONITORING FAILED for region: %@ - %@", region.identifier, error.localizedDescription);
     
     if (self.flutterEventSinkMonitoring) {
-        CLBeaconRegion *reg;
+        CLBeaconRegion *reg = nil;
         for (CLBeaconRegion *r in self.regionMonitoring) {
             if ([region.identifier isEqualToString:r.identifier]) {
                 reg = r;
@@ -661,29 +731,72 @@
         if (reg) {
             NSDictionary *dictRegion = [FBUtils dictionaryFromCLBeaconRegion:reg];
             self.flutterEventSinkMonitoring(@{
-                                              @"event": @"monitoringDidFail",
-                                              @"region": dictRegion,
-                                              @"error": error.localizedDescription
-                                              });
+                @"event": @"monitoringDidFail",
+                @"region": dictRegion,
+                @"error": error.localizedDescription
+            });
         }
     }
 }
 
 // CRITICAL FIX: Handle ranging failures
 - (void)locationManager:(CLLocationManager *)manager rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region withError:(NSError *)error {
-    NSLog(@"RANGING FAILED for region: %@ with error: %@", region.identifier, error.localizedDescription);
+    NSLog(@"[ERROR] RANGING FAILED for region: %@ - %@", region.identifier, error.localizedDescription);
+    
+    // Retry ranging after a short delay
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [manager startRangingBeaconsInRegion:region];
+        NSLog(@"Retrying ranging for region: %@", region.identifier);
+    });
+}
+
+// Handle location errors
+- (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error {
+    NSLog(@"[ERROR] Location Manager failed: %@", error.localizedDescription);
 }
 
 ///------------------------------------------------------------
-#pragma mark - Peripheral Manager
+#pragma mark - Peripheral Manager Delegate
 ///------------------------------------------------------------
 
 - (void)peripheralManagerDidUpdateState:(CBPeripheralManager *)peripheral {
     switch (peripheral.state) {
         case CBPeripheralManagerStatePoweredOn:
+            NSLog(@"Peripheral Manager: Powered On");
             if (self.shouldStartAdvertise) {
                 [peripheral startAdvertising:self.beaconPeripheralData];
-                self.shouldStartAdvertise = NO;
+                
+                if (self.flutterBroadcastResult) {
+                    self.flutterBroadcastResult(nil);
+                    self.flutterBroadcastResult = nil;
+                }
+            }
+            break;
+        case CBPeripheralManagerStatePoweredOff:
+            NSLog(@"Peripheral Manager: Powered Off");
+            if (self.flutterBroadcastResult) {
+                self.flutterBroadcastResult([FlutterError errorWithCode:@"Bluetooth"
+                                                                message:@"Bluetooth is powered off"
+                                                                details:nil]);
+                self.flutterBroadcastResult = nil;
+            }
+            break;
+        case CBPeripheralManagerStateUnsupported:
+            NSLog(@"Peripheral Manager: Unsupported");
+            if (self.flutterBroadcastResult) {
+                self.flutterBroadcastResult([FlutterError errorWithCode:@"Bluetooth"
+                                                                message:@"Bluetooth LE is not supported"
+                                                                details:nil]);
+                self.flutterBroadcastResult = nil;
+            }
+            break;
+        case CBPeripheralManagerStateUnauthorized:
+            NSLog(@"Peripheral Manager: Unauthorized");
+            if (self.flutterBroadcastResult) {
+                self.flutterBroadcastResult([FlutterError errorWithCode:@"Bluetooth"
+                                                                message:@"Bluetooth is not authorized"
+                                                                details:nil]);
+                self.flutterBroadcastResult = nil;
             }
             break;
         default:
@@ -691,17 +804,18 @@
     }
 }
 
-- (void)peripheralManagerDidStartAdvertising:(CBPeripheralManager *)peripheral error:(nullable NSError *)error {
-    if (!self.flutterBroadcastResult) {
-        return;
-    }
-    
+- (void)peripheralManagerDidStartAdvertising:(CBPeripheralManager *)peripheral error:(NSError *)error {
     if (error) {
-        self.flutterBroadcastResult([FlutterError errorWithCode:@"Broadcast" message:error.localizedDescription details:error]);
+        NSLog(@"Failed to advertise beacon: %@", error.localizedDescription);
+        if (self.flutterBroadcastResult) {
+            self.flutterBroadcastResult([FlutterError errorWithCode:@"Broadcast"
+                                                            message:error.localizedDescription
+                                                            details:nil]);
+            self.flutterBroadcastResult = nil;
+        }
     } else {
-        self.flutterBroadcastResult(@(peripheral.isAdvertising));
+        NSLog(@"Successfully started advertising beacon");
     }
-    self.flutterBroadcastResult = nil;
 }
 
 @end
