@@ -288,6 +288,10 @@
         // initialize location manager if it itsn't
         self.locationManager = [[CLLocationManager alloc] init];
         self.locationManager.delegate = self;
+        
+        // CRITICAL: Enable background location updates for real-time monitoring
+        self.locationManager.allowsBackgroundLocationUpdates = YES;
+        self.locationManager.pausesLocationUpdatesAutomatically = NO;
     }
 }
 
@@ -325,7 +329,7 @@
     }
     
     for (CLBeaconRegion *r in self.regionRanging) {
-        NSLog(@"START: %@", r);
+        NSLog(@"START RANGING: %@", r);
         [self.locationManager startRangingBeaconsInRegion:r];
     }
 }
@@ -353,13 +357,21 @@
         CLBeaconRegion *region = [FBUtils regionFromDictionary:dict];
         
         if (region) {
+            // CRITICAL FIX: Enable real-time notifications
+            region.notifyOnEntry = YES;
+            region.notifyOnExit = YES;
+            region.notifyEntryStateOnDisplay = YES;
+            
             [self.regionMonitoring addObject:region];
         }
     }
     
     for (CLBeaconRegion *r in self.regionMonitoring) {
-        NSLog(@"START: %@", r);
+        NSLog(@"START MONITORING: %@", r);
         [self.locationManager startMonitoringForRegion:r];
+        
+        // CRITICAL FIX: Request immediate state determination
+        [self.locationManager requestStateForRegion:r];
     }
 }
 
@@ -555,6 +567,8 @@
 }
 
 - (void)locationManager:(CLLocationManager *)manager didEnterRegion:(CLRegion *)region {
+    NSLog(@"DID ENTER REGION: %@", region.identifier);
+    
     if (self.flutterEventSinkMonitoring) {
         CLBeaconRegion *reg;
         for (CLBeaconRegion *r in self.regionMonitoring) {
@@ -575,6 +589,8 @@
 }
 
 - (void)locationManager:(CLLocationManager *)manager didExitRegion:(CLRegion *)region {
+    NSLog(@"DID EXIT REGION: %@", region.identifier);
+    
     if (self.flutterEventSinkMonitoring) {
         CLBeaconRegion *reg;
         for (CLBeaconRegion *r in self.regionMonitoring) {
@@ -595,6 +611,8 @@
 }
 
 - (void)locationManager:(CLLocationManager *)manager didDetermineState:(CLRegionState)state forRegion:(CLRegion *)region {
+    NSLog(@"DID DETERMINE STATE: %@ for region: %@", @(state), region.identifier);
+    
     if (self.flutterEventSinkMonitoring) {
         CLBeaconRegion *reg;
         for (CLBeaconRegion *r in self.regionMonitoring) {
@@ -625,6 +643,35 @@
                                               });
         }
     }
+}
+
+// CRITICAL FIX: Handle monitoring failures
+- (void)locationManager:(CLLocationManager *)manager monitoringDidFailForRegion:(nullable CLRegion *)region withError:(NSError *)error {
+    NSLog(@"MONITORING FAILED for region: %@ with error: %@", region.identifier, error.localizedDescription);
+    
+    if (self.flutterEventSinkMonitoring) {
+        CLBeaconRegion *reg;
+        for (CLBeaconRegion *r in self.regionMonitoring) {
+            if ([region.identifier isEqualToString:r.identifier]) {
+                reg = r;
+                break;
+            }
+        }
+        
+        if (reg) {
+            NSDictionary *dictRegion = [FBUtils dictionaryFromCLBeaconRegion:reg];
+            self.flutterEventSinkMonitoring(@{
+                                              @"event": @"monitoringDidFail",
+                                              @"region": dictRegion,
+                                              @"error": error.localizedDescription
+                                              });
+        }
+    }
+}
+
+// CRITICAL FIX: Handle ranging failures
+- (void)locationManager:(CLLocationManager *)manager rangingBeaconsDidFailForRegion:(CLBeaconRegion *)region withError:(NSError *)error {
+    NSLog(@"RANGING FAILED for region: %@ with error: %@", region.identifier, error.localizedDescription);
 }
 
 ///------------------------------------------------------------

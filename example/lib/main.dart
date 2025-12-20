@@ -76,10 +76,15 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
   final _rssiNotifier = ValueNotifier<int>(0);
   final _monitorNotifier =
       ValueNotifier<MonitoringState>(MonitoringState.outside);
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+
+    _timer = Timer.periodic(Duration(seconds: 1), (t) {
+      if (mounted) setState(() {});
+    });
 
     final regions = [
       Region(
@@ -115,6 +120,7 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
   void dispose() {
     _sub?.cancel();
     _monitorSub?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -122,7 +128,7 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('My Widget Screen'),
+        title: Text('My Widget Screen v2'),
       ),
       body: Center(
         child: Padding(

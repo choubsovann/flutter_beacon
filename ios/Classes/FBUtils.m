@@ -71,6 +71,13 @@
         region = [[CLBeaconRegion alloc] initWithProximityUUID:[[NSUUID alloc] initWithUUIDString:proximityUUID] identifier:identifier];
     }
     
+    // Enable real-time notifications
+    if (region) {
+        region.notifyOnEntry = YES;
+        region.notifyOnExit = YES;
+        region.notifyEntryStateOnDisplay = YES;
+    }
+    
     return region;
 }
 
