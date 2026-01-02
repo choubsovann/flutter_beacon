@@ -15,10 +15,9 @@ void main() async {
   FluWakeLock().enable();
 
   FlutterNativeSplash.remove();
-  Future.microtask(() async {
+  await Future.microtask(() async {
     if (Platform.isAndroid) {
       await Permission.locationWhenInUse.request();
-      await Permission.locationAlways.request();
       await Permission.bluetooth.request();
       await Permission.bluetoothScan.request();
       await Permission.bluetoothConnect.request();
@@ -72,21 +71,10 @@ class MyWidgetScreen extends StatefulWidget {
 class _MyWidgetScreenState extends State<MyWidgetScreen> {
   StreamSubscription? _sub;
   StreamSubscription? _monitorSub;
-  final _distanceNotifier = ValueNotifier<double>(0);
-  final _rssiNotifier = ValueNotifier<int>(0);
+  final _beaconNotifier = ValueNotifier<List<Beacon>>([]);
   final _monitorNotifier =
       ValueNotifier<MonitoringState>(MonitoringState.outside);
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _timer = Timer.periodic(Duration(seconds: 1), (t) {
-      if (mounted) setState(() {});
-    });
-
-    final regions = [
+      List<Region> regions = [
       Region(
         identifier: 'branch-101',
         proximityUUID: 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825',
@@ -95,23 +83,29 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
       ),
     ];
 
+  @override
+  void initState() {
+    super.initState();
+
+    
+
     Future.microtask(() async {
       await flutterBeacon.initializeScanning;
       _monitorSub =
           flutterBeacon.monitoring(regions).listen((MonitoringResult result) {
-        if (result.monitoringState != null) {
-          _monitorNotifier.value =
-              result.monitoringState ?? MonitoringState.outside;
+        if (result.monitoringState == null) return;
+
+        _monitorNotifier.value =
+            result.monitoringState ?? MonitoringState.outside;
+
+        if (result.monitoringState == MonitoringState.outside) {
+          _beaconNotifier.value = [];
         }
       });
       _sub = flutterBeacon.ranging(regions).listen((RangingResult result) {
-        if (result.beacons.isEmpty) {
-          return;
-        }
+        if (result.beacons.isEmpty) return;
 
-        final beacon = result.beacons.first;
-        _distanceNotifier.value = beacon.accuracy;
-        _rssiNotifier.value = beacon.rssi;
+        _beaconNotifier.value = result.beacons;
       });
     });
   }
@@ -120,16 +114,13 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
   void dispose() {
     _sub?.cancel();
     _monitorSub?.cancel();
-    _timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('My Widget Screen v2'),
-      ),
+      appBar: AppBar(title: Text('iBeacon')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -137,6 +128,16 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Status Indicator
+              StreamBuilder(stream: flutterBeacon.bluetoothStateChanged(), builder: (_, s){
+                return Text('${s.connectionState}');
+              }),
+
+               StreamBuilder(stream: flutterBeacon.authorizationStatusChanged(), builder: (_, s){
+                return Text('${s.connectionState}');
+              }),
+
+              SizedBox(height: 10),
+
               ValueListenableBuilder(
                 valueListenable: _monitorNotifier,
                 builder: (_, MonitoringState status, w) {
@@ -176,34 +177,46 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
                 },
               ),
               SizedBox(height: 32),
-              ValueListenableBuilder(
-                  valueListenable: _distanceNotifier,
-                  builder: (_, double v, w) {
-                    return Center(
-                      child: Text(
-                        'Distance: ${v.toStringAsFixed(2)} m\n',
-                        style: TextStyle(fontSize: 18),
-                      ),
-                    );
-                  }),
-              ValueListenableBuilder(
-                  valueListenable: _rssiNotifier,
-                  builder: (_, int v, w) {
-                    return Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Center(child: signalBars(rssiToLevel(v))),
-                          SizedBox(width: 16),
-                          Expanded(
-                              child: Text(
-                            'RSSI: $v dBm (${rssiToLevel(v).str})',
-                            style: TextStyle(fontSize: 16),
-                          )),
-                        ],
-                      ),
-                    );
-                  }),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: ValueListenableBuilder(
+                      valueListenable: _beaconNotifier,
+                      builder: (_, List<Beacon> beacons, w) {
+                        if(beacons.isEmpty){
+                          return Center(child: Text('No iBeacon detected'));
+                        }
+
+                        return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: List.generate(beacons.length, (i) {
+                              final v = beacons[i];
+
+                              return Container(
+                                width: MediaQuery.of(context).size.width,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: Text.rich(
+                                    TextSpan(
+                                      style: TextStyle(fontSize: 12),
+                                      children: [
+                                        TextSpan(
+                                          text: '${v.proximityUUID}\n',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                        TextSpan(
+                                          text:
+                                              'Major: ${v.major}\nMinor: ${v.minor}\nRSSI: ${v.rssi} dBm (${rssiToLevel(v.rssi).str})',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }));
+                      }),
+                ),
+              ),
             ],
           ),
         ),
