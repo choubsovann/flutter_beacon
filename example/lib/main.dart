@@ -44,18 +44,11 @@ class MainApp extends StatelessWidget {
         appBarTheme: themeData.appBarTheme.copyWith(
           elevation: 0.5,
           color: Colors.white,
-          actionsIconTheme: themeData.primaryIconTheme.copyWith(
-            color: primary,
-          ),
-          iconTheme: themeData.primaryIconTheme.copyWith(
-            color: primary,
-          ),
+          actionsIconTheme: themeData.primaryIconTheme.copyWith(color: primary),
+          iconTheme: themeData.primaryIconTheme.copyWith(color: primary),
         ),
       ),
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: primary,
-      ),
+      darkTheme: ThemeData(brightness: Brightness.dark, primarySwatch: primary),
       home: MyWidgetScreen(),
     );
   }
@@ -72,27 +65,27 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
   StreamSubscription? _sub;
   StreamSubscription? _monitorSub;
   final _beaconNotifier = ValueNotifier<List<Beacon>>([]);
-  final _monitorNotifier =
-      ValueNotifier<MonitoringState>(MonitoringState.outside);
-      List<Region> regions = [
-      Region(
-        identifier: 'branch-101',
-        proximityUUID: 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825',
-        major: 10001,
-        minor: 26247,
-      ),
-    ];
+  final _monitorNotifier = ValueNotifier<MonitoringState>(
+    MonitoringState.outside,
+  );
+  List<Region> regions = [
+    Region(
+      identifier: 'branch-101',
+      proximityUUID: 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825',
+      major: 10001,
+      minor: 26247,
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
 
-    
-
     Future.microtask(() async {
       await flutterBeacon.initializeScanning;
-      _monitorSub =
-          flutterBeacon.monitoring(regions).listen((MonitoringResult result) {
+      _monitorSub = flutterBeacon.monitoring(regions).listen((
+        MonitoringResult result,
+      ) {
         if (result.monitoringState == null) return;
 
         _monitorNotifier.value =
@@ -128,13 +121,19 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Status Indicator
-              StreamBuilder(stream: flutterBeacon.bluetoothStateChanged(), builder: (_, s){
-                return Text('${s.connectionState}');
-              }),
+              StreamBuilder(
+                stream: flutterBeacon.bluetoothStateChanged(),
+                builder: (_, s) {
+                  return Text('${s.connectionState}');
+                },
+              ),
 
-               StreamBuilder(stream: flutterBeacon.authorizationStatusChanged(), builder: (_, s){
-                return Text('${s.connectionState}');
-              }),
+              StreamBuilder(
+                stream: flutterBeacon.authorizationStatusChanged(),
+                builder: (_, s) {
+                  return Text('${s.connectionState}');
+                },
+              ),
 
               SizedBox(height: 10),
 
@@ -180,41 +179,44 @@ class _MyWidgetScreenState extends State<MyWidgetScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   child: ValueListenableBuilder(
-                      valueListenable: _beaconNotifier,
-                      builder: (_, List<Beacon> beacons, w) {
-                        if(beacons.isEmpty){
-                          return Center(child: Text('No iBeacon detected'));
-                        }
+                    valueListenable: _beaconNotifier,
+                    builder: (_, List<Beacon> beacons, w) {
+                      if (beacons.isEmpty) {
+                        return Center(child: Text('No iBeacon detected'));
+                      }
 
-                        return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: List.generate(beacons.length, (i) {
-                              final v = beacons[i];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: List.generate(beacons.length, (i) {
+                          final v = beacons[i];
 
-                              return Container(
-                                width: MediaQuery.of(context).size.width,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: Text.rich(
+                          return Container(
+                            width: MediaQuery.of(context).size.width,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Text.rich(
+                                TextSpan(
+                                  style: TextStyle(fontSize: 12),
+                                  children: [
                                     TextSpan(
-                                      style: TextStyle(fontSize: 12),
-                                      children: [
-                                        TextSpan(
-                                          text: '${v.proximityUUID}\n',
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.bold),
-                                        ),
-                                        TextSpan(
-                                          text:
-                                              'Major: ${v.major}\nMinor: ${v.minor}\nRSSI: ${v.rssi} dBm (${rssiToLevel(v.rssi).str})',
-                                        ),
-                                      ],
+                                      text: '${v.proximityUUID}\n',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
+                                    TextSpan(
+                                      text:
+                                          'Major: ${v.major}\nMinor: ${v.minor}\nRSSI: ${v.rssi} dBm (${rssiToLevel(v.rssi).str})',
+                                    ),
+                                  ],
                                 ),
-                              );
-                            }));
-                      }),
+                              ),
+                            ),
+                          );
+                        }),
+                      );
+                    },
+                  ),
                 ),
               ),
             ],

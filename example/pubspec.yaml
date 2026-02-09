@@ -4,12 +4,11 @@ publish_to: "none"
 version: "1.0.0+4"
 
 environment:
-  sdk: ^3.5.4
+  sdk: ^3.10.8
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_native_splash: ^2.4.4
 
 dev_dependencies:
   flutter_test:
