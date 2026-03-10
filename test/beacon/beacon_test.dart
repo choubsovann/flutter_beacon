@@ -121,9 +121,9 @@ main() {
     ];
     expect(Beacon.beaconArrayToJson(beacons) is List<dynamic>, isTrue);
     expect(
-        Beacon.beaconFromArray(Beacon.beaconArrayToJson(beacons))
-            is List<Beacon>,
-        isTrue);
+      Beacon.beaconFromArray(Beacon.beaconArrayToJson(beacons)) is List<Beacon>,
+      isTrue,
+    );
   });
 
   test('beacon json must be equal', () {
@@ -158,15 +158,16 @@ main() {
       'proximity': 'far',
     });
     expect(
-        beacon.toString(),
-        json.encode({
-          'proximityUUID': 'UUID',
-          'major': 1,
-          'minor': 2,
-          'rssi': -60,
-          'accuracy': 1.23,
-          'proximity': 'far',
-          'macAddress': 'MAC',
-        }));
+      beacon.toString(),
+      json.encode({
+        'proximityUUID': 'UUID',
+        'major': 1,
+        'minor': 2,
+        'rssi': -60,
+        'accuracy': 1.23,
+        'proximity': 'far',
+        'macAddress': 'MAC',
+      }),
+    );
   });
 }

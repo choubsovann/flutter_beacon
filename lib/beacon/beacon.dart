@@ -47,21 +47,21 @@ class Beacon {
     this.txPower,
     required this.accuracy,
     Proximity? proximity,
-  })  : this.rssi = rssi ?? -1,
-        this._proximity = proximity;
+  }) : this.rssi = rssi ?? -1,
+       this._proximity = proximity;
 
   /// Create beacon object from json.
   Beacon.fromJson(dynamic json)
-      : this(
-          proximityUUID: json['proximityUUID'],
-          macAddress: json['macAddress'],
-          major: json['major'],
-          minor: json['minor'],
-          rssi: _parseInt(json['rssi']),
-          txPower: _parseInt(json['txPower']),
-          accuracy: _parseDouble(json['accuracy']),
-          proximity: _parseProximity(json['proximity']),
-        );
+    : this(
+        proximityUUID: json['proximityUUID'],
+        macAddress: json['macAddress'],
+        major: json['major'],
+        minor: json['minor'],
+        rssi: _parseInt(json['rssi']),
+        txPower: _parseInt(json['txPower']),
+        accuracy: _parseDouble(json['accuracy']),
+        proximity: _parseProximity(json['proximity']),
+      );
 
   /// Parsing dynamic data into double.
   static double _parseDouble(dynamic data) {
@@ -132,7 +132,7 @@ class Beacon {
       'minor': minor,
       'rssi': rssi,
       'accuracy': accuracy,
-      'proximity': proximity.toString().split('.').last
+      'proximity': proximity.toString().split('.').last,
     };
 
     if (txPower != null) {
@@ -156,7 +156,7 @@ class Beacon {
   /// - `accuracy > 3.0` : [Proximity.far]
   Proximity get proximity {
     if (_proximity != null) {
-      return _proximity!;
+      return _proximity;
     }
 
     if (accuracy == 0.0) {
