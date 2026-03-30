@@ -53,20 +53,17 @@ Permission must be declared in `ios/Runner/Info.plist`:
 
 ```xml
 <dict>
-  <!-- When in use -->
   <key>NSLocationWhenInUseUsageDescription</key>
-  <string>Reason why app needs location</string>
-  <!-- Always -->
-  <!-- for iOS 11 + -->
+  <string>Allow KEDTec HR access location to use kids pickup.</string>
+
   <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-  <string>Reason why app needs location</string>
-  <!-- for iOS 9/10 -->
+  <string>Allow KEDTec HR access location to use kids pickup.</string>
+
   <key>NSLocationAlwaysUsageDescription</key>
-  <string>Reason why app needs location</string>
-  <!-- Bluetooth Privacy -->
-  <!-- for iOS 13 + -->
+  <string>Allow KEDTec HR access location to use kids pickup.</string>
+
   <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>Reason why app needs bluetooth</string>
+  <string>Allow KEDTec HR to connect to Bluetooth devices for attendance tracking.</string>
 </dict>
 ```
 
