@@ -82,6 +82,12 @@ class _HomeScreenState extends State<HomeScreen> {
       major: 27912,
       minor: 45060,
     ),
+    Region(
+      identifier: 'F01204B00866',
+      proximityUUID: 'FFFE2D12-1E4B-0FA4-994E-CEB531F40545',
+      major: 26120,
+      minor: 45060,
+    ),
   ];
 
   @override
